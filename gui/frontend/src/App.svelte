@@ -11,14 +11,14 @@
     RunTest,
   } from "../wailsjs/go/main/App.js";
   import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime.js";
-  import type { main } from "../wailsjs/go/models";
+  import { guiapi } from "../wailsjs/go/models";
 
   import { appendLog, resetLogIds, type LogEntry } from "./logs";
 
-  type ProxyConfig = main.ProxyConfig;
-  type ProxyStatus = main.ProxyStatus;
-  type TestResult = main.TestResult;
-  type TestSummary = main.TestSummary;
+  type ProxyConfig = guiapi.ProxyConfig;
+  type ProxyStatus = guiapi.ProxyStatus;
+  type TestResult = guiapi.TestResult;
+  type TestSummary = guiapi.TestSummary;
 
   let cfg: ProxyConfig | null = null;
   let utlsList: string[] = [];
@@ -34,8 +34,29 @@
     logs = appendLog(logs, entry);
   }
 
+  // Save config to local storage when it changes
+  $: if (cfg) {
+    try {
+      localStorage.setItem("gui_config", JSON.stringify(cfg));
+    } catch (e) {
+      console.error("Failed to save config to local storage:", e);
+    }
+  }
+
   onMount(async () => {
-    cfg = await GetDefaultConfig();
+    const defaultCfg = await GetDefaultConfig();
+    const saved = localStorage.getItem("gui_config");
+    if (saved) {
+      try {
+        cfg = { ...defaultCfg, ...JSON.parse(saved) };
+      } catch (e) {
+        console.error("Failed to parse saved config:", e);
+        cfg = defaultCfg;
+      }
+    } else {
+      cfg = defaultCfg;
+    }
+
     utlsList = await UTLSPresets();
     injectorList = await InjectorModes();
     status = await Status();
@@ -76,11 +97,11 @@
       else failed++;
     }
     return {
-      preflight: testSummary?.preflight ?? {},
+      preflight: testSummary?.preflight ?? { externalIp: "", internalIp: "", matched: false } as any,
       results,
       passed,
       failed,
-    };
+    } as TestSummary;
   }
 
   async function onStart() {
