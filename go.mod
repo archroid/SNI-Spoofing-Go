@@ -12,6 +12,7 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.0.6 // indirect
+	github.com/emersion/go-autostart v0.0.0-20250403115856-34830d6457d2 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/josharian/native v1.1.0 // indirect
 	github.com/klauspost/compress v1.17.4 // indirect

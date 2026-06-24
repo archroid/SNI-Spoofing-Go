@@ -20,6 +20,8 @@ func validConfig() ProxyConfig {
 		EnableFragment:  false,
 		FragmentDelayMs: 500,
 		SNIChunk:        3,
+		AutoConnect:     false,
+		AutoStart:       false,
 	}
 }
 

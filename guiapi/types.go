@@ -14,6 +14,8 @@ type ProxyConfig struct {
 	EnableFragment  bool   `json:"enableFragment"`
 	FragmentDelayMs int    `json:"fragmentDelayMs"`
 	SNIChunk        int    `json:"sniChunk"`
+	AutoConnect     bool   `json:"autoConnect"`
+	AutoStart       bool   `json:"autoStart"`
 }
 
 type ProxyStatus struct {
@@ -62,5 +64,7 @@ func DefaultConfig(injector string) ProxyConfig {
 		EnableFragment:  false,
 		FragmentDelayMs: 500,
 		SNIChunk:        3,
+		AutoConnect:     false,
+		AutoStart:       false,
 	}
 }
