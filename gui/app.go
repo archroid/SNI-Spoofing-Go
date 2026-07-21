@@ -9,6 +9,7 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"sni-spoofing-gui/autostart"
 	"sni-spoofing-go/guiapi"
 	"sni-spoofing-go/helper"
 	"sni-spoofing-go/helper/spawn"
@@ -27,13 +28,24 @@ type TestPreflight = guiapi.TestPreflight
 type App struct {
 	ctx context.Context
 
-	mu      sync.Mutex
-	manager *helper.Manager
-	status  ProxyStatus
+	mu             sync.Mutex
+	manager        *helper.Manager
+	status         ProxyStatus
+	minimizeToTray bool
+	isQuitting     bool
+	windowVisible  bool
+	lastConfig     ProxyConfig
+	trayManager    *TrayManager
 }
 
 func NewApp() *App {
-	return &App{}
+	a := &App{
+		minimizeToTray: true,
+		windowVisible:  true,
+	}
+	a.lastConfig = a.GetDefaultConfig()
+	a.trayManager = NewTrayManager(a)
+	return a
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -57,6 +69,25 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 }
 
+func (a *App) onBeforeClose(ctx context.Context) bool {
+	a.mu.Lock()
+	minToTray := a.minimizeToTray
+	quitting := a.isQuitting
+	a.mu.Unlock()
+
+	if minToTray && !quitting {
+		runtime.WindowHide(ctx)
+		a.mu.Lock()
+		a.windowVisible = false
+		a.mu.Unlock()
+		if a.trayManager != nil {
+			a.trayManager.UpdateShowHideText(false)
+		}
+		return true
+	}
+	return false
+}
+
 func (a *App) onHelperLog(ev LogEvent) {
 	a.emitLog(ev.Level, ev.Message)
 }
@@ -66,6 +97,9 @@ func (a *App) onHelperStatus(st ProxyStatus) {
 	a.status = st
 	a.mu.Unlock()
 	a.emitStatus(st)
+	if a.trayManager != nil {
+		a.trayManager.UpdateStatus(st)
+	}
 }
 
 func (a *App) onHelperTestResult(row TestResult) {
@@ -87,8 +121,12 @@ func (a *App) onHelperDisconnect(err error) {
 func (a *App) clearStatus() {
 	a.mu.Lock()
 	a.status = ProxyStatus{}
+	st := a.status
 	a.mu.Unlock()
-	a.emitStatus(a.status)
+	a.emitStatus(st)
+	if a.trayManager != nil {
+		a.trayManager.UpdateStatus(st)
+	}
 }
 
 func (a *App) GetDefaultConfig() ProxyConfig {
@@ -128,6 +166,10 @@ func (a *App) Start(cfg ProxyConfig) error {
 	if err := guiapi.ValidateConfig(cfg); err != nil {
 		return err
 	}
+	a.mu.Lock()
+	a.lastConfig = cfg
+	a.mu.Unlock()
+
 	a.emitLog("info", "Starting proxy…")
 	client, err := a.helperClient(a.ctx)
 	if err != nil {
@@ -162,12 +204,109 @@ func (a *App) RunTest(cfg ProxyConfig) (TestSummary, error) {
 	if err := guiapi.ValidateConfig(cfg); err != nil {
 		return TestSummary{}, err
 	}
+	a.mu.Lock()
+	a.lastConfig = cfg
+	a.mu.Unlock()
+
 	a.emitLog("info", "Running test matrix…")
 	client, err := a.helperClient(a.ctx)
 	if err != nil {
 		return TestSummary{}, err
 	}
 	return client.RunTest(a.ctx, cfg)
+}
+
+func (a *App) GetAutoStart() (bool, error) {
+	return autostart.IsEnabled()
+}
+
+func (a *App) SetAutoStart(enabled bool) error {
+	var err error
+	if enabled {
+		err = autostart.Enable()
+	} else {
+		err = autostart.Disable()
+	}
+	if err == nil && a.trayManager != nil {
+		a.trayManager.UpdateAutostart(enabled)
+	}
+	return err
+}
+
+func (a *App) ToggleAutoStart() error {
+	curr, err := a.GetAutoStart()
+	if err != nil {
+		return err
+	}
+	return a.SetAutoStart(!curr)
+}
+
+func (a *App) GetMinimizeToTray() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.minimizeToTray
+}
+
+func (a *App) SetMinimizeToTray(enabled bool) {
+	a.mu.Lock()
+	a.minimizeToTray = enabled
+	a.mu.Unlock()
+	if a.trayManager != nil {
+		a.trayManager.UpdateMinimizeToTray(enabled)
+	}
+}
+
+func (a *App) ToggleMinimizeToTray() {
+	curr := a.GetMinimizeToTray()
+	a.SetMinimizeToTray(!curr)
+}
+
+func (a *App) ToggleWindowVisibility() {
+	if a.ctx == nil {
+		return
+	}
+	a.mu.Lock()
+	visible := a.windowVisible
+	a.mu.Unlock()
+
+	if visible {
+		runtime.WindowHide(a.ctx)
+		a.mu.Lock()
+		a.windowVisible = false
+		a.mu.Unlock()
+	} else {
+		runtime.WindowShow(a.ctx)
+		runtime.WindowUnminimise(a.ctx)
+		a.mu.Lock()
+		a.windowVisible = true
+		a.mu.Unlock()
+	}
+	if a.trayManager != nil {
+		a.trayManager.UpdateShowHideText(!visible)
+	}
+}
+
+func (a *App) ToggleProxy() {
+	a.mu.Lock()
+	st := a.status
+	cfg := a.lastConfig
+	a.mu.Unlock()
+
+	if st.Running || st.Testing {
+		_ = a.Stop()
+	} else {
+		_ = a.Start(cfg)
+	}
+}
+
+func (a *App) Quit() {
+	a.mu.Lock()
+	a.isQuitting = true
+	a.mu.Unlock()
+	_ = a.Stop()
+	if a.ctx != nil {
+		runtime.Quit(a.ctx)
+	}
 }
 
 func (a *App) emitLog(level, message string) {

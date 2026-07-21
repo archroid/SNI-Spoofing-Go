@@ -9,6 +9,10 @@
     Stop,
     Status,
     RunTest,
+    GetAutoStart,
+    SetAutoStart,
+    GetMinimizeToTray,
+    SetMinimizeToTray,
   } from "../wailsjs/go/main/App.js";
   import { EventsOn, EventsOff } from "../wailsjs/runtime/runtime.js";
   import { guiapi } from "../wailsjs/go/models";
@@ -29,6 +33,14 @@
   let testSummary: TestSummary | null = null;
   let busy = false;
   let rightPanelTab: "logs" | "results" = "logs";
+  let autostartEnabled = false;
+  let minimizeToTray = true;
+  let autoStartProxy = true;
+
+  const savedAutoStartProxy = localStorage.getItem("gui_autostart_proxy");
+  if (savedAutoStartProxy !== null) {
+    autoStartProxy = savedAutoStartProxy === "true";
+  }
 
   function pushLog(entry: Omit<LogEntry, "id">) {
     logs = appendLog(logs, entry);
@@ -60,6 +72,16 @@
     utlsList = await UTLSPresets();
     injectorList = await InjectorModes();
     status = await Status();
+    try {
+      autostartEnabled = await GetAutoStart();
+    } catch (e) {
+      console.error("Failed to get autostart state:", e);
+    }
+    try {
+      minimizeToTray = await GetMinimizeToTray();
+    } catch (e) {
+      console.error("Failed to get minimizeToTray state:", e);
+    }
     EventsOn("log", (e: { level: string; message: string }) => {
       pushLog({ ts: Date.now(), level: e.level, message: e.message });
     });
@@ -69,7 +91,47 @@
     EventsOn("test_result", (row: TestResult) => {
       testResults = [...testResults, row];
     });
+
+    if (autoStartProxy && !status.running && !status.testing) {
+      onStart();
+    }
   });
+
+  function onToggleAutoStartProxy(ev: Event) {
+    const target = ev.target as HTMLInputElement;
+    autoStartProxy = target.checked;
+    try {
+      localStorage.setItem("gui_autostart_proxy", String(autoStartProxy));
+    } catch (e) {
+      console.error("Failed to save autostart proxy preference:", e);
+    }
+  }
+
+  async function onToggleAutoStart(ev: Event) {
+    const target = ev.target as HTMLInputElement;
+    const newValue = target.checked;
+    try {
+      await SetAutoStart(newValue);
+      autostartEnabled = newValue;
+    } catch (err) {
+      pushError(err);
+      target.checked = !newValue;
+      autostartEnabled = !newValue;
+    }
+  }
+
+  async function onToggleMinimizeToTray(ev: Event) {
+    const target = ev.target as HTMLInputElement;
+    const newValue = target.checked;
+    try {
+      await SetMinimizeToTray(newValue);
+      minimizeToTray = newValue;
+    } catch (err) {
+      pushError(err);
+      target.checked = !newValue;
+      minimizeToTray = !newValue;
+    }
+  }
 
   onDestroy(() => {
     EventsOff("log");
@@ -217,6 +279,34 @@
 <main class="layout">
   <section class="panel">
     {#if cfg}
+      <div class="section-title">{$_("form.section_general")}</div>
+      <div class="grid-2">
+        <label class="checkbox-row">
+          <input
+            type="checkbox"
+            checked={autoStartProxy}
+            on:change={onToggleAutoStartProxy}
+          />
+          <span>{$_("form.autostart_proxy")}</span>
+        </label>
+        <label class="checkbox-row">
+          <input
+            type="checkbox"
+            checked={autostartEnabled}
+            on:change={onToggleAutoStart}
+          />
+          <span>{$_("form.autostart")}</span>
+        </label>
+        <label class="checkbox-row">
+          <input
+            type="checkbox"
+            checked={minimizeToTray}
+            on:change={onToggleMinimizeToTray}
+          />
+          <span>{$_("form.minimize_to_tray")}</span>
+        </label>
+      </div>
+
       <div class="section-title">{$_("form.section_connection")}</div>
       <div class="grid-2">
         <label>

@@ -39,20 +39,34 @@ func main() {
 	}
 
 	app := NewApp()
+	if app.trayManager != nil {
+		app.trayManager.Start()
+	}
+
+	startHidden := false
+	for _, arg := range os.Args[1:] {
+		if arg == "--autostart" || arg == "-autostart" {
+			startHidden = true
+			app.windowVisible = false
+			break
+		}
+	}
 
 	err := wails.Run(&options.App{
-		Title:     "SNI Spoofing",
-		Width:     1100,
-		Height:    760,
-		MinWidth:  900,
-		MinHeight: 600,
+		Title:             "SNI Spoofing",
+		Width:             1100,
+		Height:            760,
+		MinWidth:          900,
+		MinHeight:         600,
+		StartHidden:       startHidden,
+		OnBeforeClose:     app.onBeforeClose,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
 		BackgroundColour: &options.RGBA{R: 18, G: 22, B: 31, A: 1},
-		OnStartup:  app.startup,
-		OnShutdown: app.shutdown,
-		Bind:       []interface{}{app},
+		OnStartup:        app.startup,
+		OnShutdown:       app.shutdown,
+		Bind:             []interface{}{app},
 	})
 
 	if err != nil {

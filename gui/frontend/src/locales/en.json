@@ -9,6 +9,13 @@
     "testing": "Testing"
   },
   "form": {
+    "section_general": "General",
+    "autostart": "Autostart on system boot",
+    "autostart_help": "Launch SNI Spoofing automatically when system starts",
+    "autostart_proxy": "Start proxy automatically on launch",
+    "autostart_proxy_help": "Automatically start SNI spoofing proxy when application opens",
+    "minimize_to_tray": "Minimize to tray",
+    "minimize_to_tray_help": "Hide window to system tray on close",
     "section_connection": "Connection",
     "section_injection": "Injection",
     "section_fragmentation": "Fragmentation",

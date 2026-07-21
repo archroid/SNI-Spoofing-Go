@@ -9,6 +9,13 @@
     "testing": "در حال آزمایش"
   },
   "form": {
+    "section_general": "عمومی",
+    "autostart": "اجرای خودکار هنگام بالا آمدن سیستم",
+    "autostart_help": "اجرای خودکار برنامه هنگام راه‌اندازی سیستم",
+    "autostart_proxy": "شروع خودکار پروکسی هنگام اجرای برنامه",
+    "autostart_proxy_help": "شروع خودکار پروکسی به محض باز شدن برنامه",
+    "minimize_to_tray": "کوچک کردن به سینی سیستم (Tray)",
+    "minimize_to_tray_help": "مخفی کردن پنجره در سینی سیستم هنگام بستن",
     "section_connection": "اتصال",
     "section_injection": "تزریق",
     "section_fragmentation": "قطعه‌بندی",
